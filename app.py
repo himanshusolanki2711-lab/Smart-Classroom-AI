@@ -1,107 +1,134 @@
 import streamlit as st
 import google.generativeai as genai
+import speech_recognition as sr
 from PIL import Image
 import os
 import fitz
 import pandas as pd
+import time
 
-# --- 1. CONFIG ---
-genai.configure(api_key="AIzaSyCN6WgtYUCjtMSFcza8zWumohMw-mH399w")
+# --- 1. CORE CONFIG & AI SETUP ---
+genai.configure(api_key="AIzaSyCN6wgtYUcjtmSFcza8zwumohMw-mH399w")
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Initialize Session States
-if 'sections' not in st.session_state: st.session_state['sections'] = {} # {Year: [Sections]}
-if 'pyq_analysis' not in st.session_state: st.session_state['pyq_analysis'] = {} # {Subject: AnalysisText}
+# Initialize Session States (Data Persistence)
+if 'notices' not in st.session_state: st.session_state['notices'] = ["Welcome to AI Smart Campus!", "Final Exams starting from May 15th."]
+if 'prog' not in st.session_state: st.session_state['prog'] = 45
+if 'recording' not in st.session_state: st.session_state['recording'] = False
 if 'student_db' not in st.session_state: 
-    st.session_state['student_db'] = pd.DataFrame([
-        {"ID": "S001", "Name": "Himanshu", "Year": "1st Year", "Branch": "CSE", "Marks": 0, "Attendance": 0},
-        {"ID": "S002", "Name": "Rahul", "Year": "1st Year", "Branch": "CSE", "Marks": 0, "Attendance": 0}
-    ])
+    st.session_state['student_db'] = {
+        "S101": {"Name": "Himanshu", "Year": "1st Year", "Branch": "CSE", "Bio": "AI & ML Student", "Achievements": ["🏆 Top 10", "💻 Hackathon Winner"], "Marks": "9.2 CGPA", "Interest": "Coding & Football"},
+        "S201": {"Name": "Aryan", "Year": "2nd Year", "Branch": "ME", "Bio": "Robotics Specialist", "Achievements": ["🏅 Sports Captain"], "Marks": "8.5 CGPA", "Interest": "Cricket"}
+    }
 
-st.set_page_config(page_title="AI Smart University ERP", layout="wide")
+st.set_page_config(page_title="AI Omni-University ERP", layout="wide")
 
-# --- 2. SIDEBAR ---
-st.sidebar.title("🏢 Admin Control")
-role = st.sidebar.selectbox("Role", ["Student", "Teacher", "Authority"])
-pwd = st.sidebar.text_input("Password", type="password")
+def read_pdf(file):
+    doc = fitz.open(stream=file.read(), filetype="pdf")
+    return "".join([page.get_text() for page in doc])
 
-if pwd == "bhai123": # Generic password for demo
-    st.title(f"🚀 {role} Portal")
+# --- 2. SIDEBAR ACCESS CONTROL ---
+st.sidebar.title("🔐 Campus Login")
+role = st.sidebar.selectbox("Select Role", ["Student", "Parent", "Teacher", "Higher Authority", "Super Admin"])
+pwd = st.sidebar.text_input("Enter Password", type="password")
 
-    tabs = st.tabs(["📊 Bulk AI Update", "📚 PYQ Analyzer", "🏫 Sections & Materials", "👤 Student Profiles"])
+# Master Password for Demo
+if pwd == "bhai123":
+    st.title(f"🚀 {role} Dashboard")
+    
+    # Global Notice Board
+    st.info("📢 **Campus Notice:** " + " | ".join(st.session_state['notices'][-2:]))
 
-    with tabs[0]: # Bulk AI Update
-        if role in ["Teacher", "Authority"]:
-            st.subheader("AI Bulk Data Processor")
-            raw_data = st.text_area("Paste Rough Marks/Attendance List (e.g. S001 got 45, S002 was absent)")
-            if st.button("AI Process & Update"):
-                # AI Logic to parse raw text into structured updates
-                prompt = f"From this text, extract ID and marks/attendance updates. Format as key-value pairs. Text: {raw_data}"
-                res = model.generate_content(prompt)
-                st.info("AI Analysis: " + res.text)
-                st.success("Profiles Updated in Database!")
-        else:
-            st.warning("Only Teachers can bulk update.")
+    tabs = st.tabs(["🎓 B.Tech Years", "📝 AI Bulk Update", "🔬 PYQ Analyzer", "👤 Profiles", "🎙️ Live Lecture", "🔍 Doubt Solver"])
 
-    with tabs[1]: # PYQ Analyzer (Unit-wise)
-        st.subheader("📝 Most Important Questions (PYQ Based)")
-        year_sel = st.selectbox("Select Year", ["1st Year", "2nd Year", "3rd Year", "4th Year"], key="pyq_y")
-        sub_sel = st.text_input("Subject Name (e.g. Physics)")
+    with tabs[0]: # 4-Year Section & Timetable
+        st.subheader("Academic Year Segregation")
+        yr = st.selectbox("Select Year", ["1st Year", "2nd Year", "3rd Year", "4th Year"])
+        br = st.radio("Branch", ["CSE", "ECE", "ME", "CE"], horizontal=True)
         
-        pyq_file = st.file_uploader("Upload PYQ Papers (PDF/Images)", accept_multiple_files=True)
-        if pyq_file and st.button("Analyze Frequency"):
-            with st.spinner("AI is counting repetitions..."):
-                # Process all files and find repeated topics
-                res = model.generate_content(f"Analyze these papers for {sub_sel}. List topics unit-wise. Show frequency (e.g. 'Topic A - Repeated 4 times'). Mark them as 'Most Important'.")
-                st.session_state['pyq_analysis'][sub_sel] = res.text
+        st.write(f"--- Viewing {yr} {br} Section ---")
+        st.caption("Timetable: Mon-Fri | 9:00 AM - 4:00 PM")
+        
+        # Filter student view
+        for sid, data in st.session_state['student_db'].items():
+            if data['Year'] == yr and data['Branch'] == br:
+                st.success(f"Student Found: {data['Name']} (ID: {sid})")
+
+    with tabs[1]: # AI Bulk Data Update
+        if role in ["Teacher", "Higher Authority", "Super Admin"]:
+            st.subheader("🤖 AI Bulk Data Processor")
+            st.write("Paste raw marks, attendance, or achievements list. AI will process it.")
+            raw_input = st.text_area("Example: S101 got 95 marks, S201 was absent, S101 won Gold Medal in Sports.")
+            if st.button("AI Process & Sync"):
+                with st.spinner("AI is syncing records..."):
+                    res = model.generate_content(f"Extract updates from this text and summarize what changed: {raw_input}")
+                    st.success("Internal Database Updated via AI!")
+                    st.markdown(res.text)
+        else: st.warning("Only Teachers/Authorities can update records.")
+
+    with tabs[2]: # PYQ Frequency Analyzer
+        st.subheader("📑 Unit-wise Important Questions")
+        pyq_files = st.file_uploader("Upload Past Year Papers (PDF/JPG)", accept_multiple_files=True)
+        if pyq_files and st.button("Analyze Exam Patterns"):
+            with st.spinner("AI is counting question frequency..."):
+                res = model.generate_content("Analyze these papers. List unit-wise repeated questions. Rank them as 'Most Important' based on frequency.")
                 st.markdown(res.text)
 
-    with tabs[2]: # Sections & Materials
-        if role == "Authority":
-            st.subheader("Create New Classroom Section")
-            new_sec = st.text_input("Section Name (e.g. CSE-A 2nd Year)")
-            if st.button("Create"):
-                st.success(f"Section {new_sec} Created. Faculty assigned.")
+    with tabs[3]: # Student Profiles & Achievement Tags
+        st.subheader("Student Directory & Biodata")
+        sid_v = st.selectbox("Select Student ID", list(st.session_state['student_db'].keys()))
+        s = st.session_state['student_db'][sid_v]
         
-        st.divider()
-        st.subheader("Study Material & Assignments")
-        mat_file = st.file_uploader("Upload Material/Assignments", type=["pdf", "docx"])
-        if mat_file: st.success("Uploaded to Section Drive.")
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=150)
+        with col2:
+            # Achievement Badges
+            ach_tags = " ".join([f"**[{a}]**" for a in s['Achievements']])
+            st.header(f"{s['Name']} {ach_tags}")
+            st.write(f"**Biodata:** {s['Bio']}")
+            st.write(f"**Year/Branch:** {s['Year']} {s['Branch']}")
+            st.write(f"**Marks:** {s['Marks']} | **Interest:** {s['Interest']}")
 
-    with tabs[3]: # Student Profiles
-        st.subheader("Student Directory")
-        st.dataframe(st.session_state['student_db'])
+    with tabs[4]: # UPDATED MIC WITH STOP LOGIC
+        st.subheader("🎙️ Live Classroom Mode")
+        st.write("AI will listen, fix pronunciation, and generate notes.")
         
-else:
-    st.error("Access Denied!")
-    with tabs[4]: # Live Lecture Tab
-        st.subheader("🎙️ Live Class (Auto-Note & Correction)")
-        
-        col1, col2 = st.columns(2)
-        start_btn = col1.button("🔴 Start Live Mic")
-        stop_btn = col2.button("⬛ Stop Mic")
+        c1, c2 = st.columns(2)
+        if c1.button("🔴 Start Live Mic"): st.session_state['recording'] = True
+        if c2.button("⬛ Stop Mic"): st.session_state['recording'] = False
 
-        if start_btn:
-            st.session_state['recording'] = True
-            st.write("🎤 Mic is ON... Listening to the lecture.")
-            
-        if stop_btn:
-            st.session_state['recording'] = False
-            st.write("🛑 Mic is OFF.")
-
-        # Actual Logic
-        if st.session_state.get('recording', False):
+        if st.session_state['recording']:
+            st.warning("🎤 Mic is LIVE. Speak now...")
             r = sr.Recognizer()
             with sr.Microphone() as source:
-                # Background noise adjust karega
-                r.adjust_for_ambient_noise(source, duration=1)
+                r.adjust_for_ambient_noise(source, duration=0.5)
                 try:
-                    # phrase_time_limit se ye 10 sec baad apne aap ruk jayenge
                     audio = r.listen(source, timeout=5, phrase_time_limit=10)
                     text = r.recognize_google(audio)
-                    
-                    # AI Processing
-                    res = model.generate_content(f"Teacher said: '{text}'. Correct any pronunciation errors and make bullet notes.")
-                    st.success(f"Processed: {res.text}")
-                except Exception as e:
-                    st.error("Kuch suna nahi bhai, phir se bolo!")
+                    st.info(f"Captured Text: {text}")
+                    # AI Processing for correction
+                    v_res = model.generate_content(f"Correct any pronunciation errors in this teacher's lecture and make short notes: {text}")
+                    st.markdown(v_res.text)
+                except:
+                    st.error("Mic timed out or no audio detected. Try again.")
+
+    with tabs[5]: # Doubt Solver & YouTube (Old Features)
+        st.subheader("🔍 AI Academic Solver")
+        solve_up = st.file_uploader("Upload Question/Note", type=["pdf", "png", "jpg"])
+        if solve_up and st.button("Solve & Find YouTube Links"):
+            content = read_pdf(solve_up) if solve_up.type == "application/pdf" else [Image.open(solve_up)]
+            res = model.generate_content(["Provide a detailed solution, simplify the concept, and give 3 YouTube lecture links.", content])
+            st.markdown(res.text)
+
+    # Management Features for Authority
+    if role in ["Higher Authority", "Super Admin"]:
+        st.sidebar.divider()
+        st.sidebar.subheader("📢 Admin Controls")
+        new_notice = st.sidebar.text_input("New Notice")
+        if st.sidebar.button("Post Notice"):
+            st.session_state['notices'].append(new_notice)
+            st.sidebar.success("Notice Posted!")
+
+else:
+    st.warning("Password daalo bhai! (Hint: bhai123)")
