@@ -37,4 +37,4 @@ if pwd == "bhai123":
         pyq_files = st.file_uploader("Upload 1 or More Papers", accept_multiple_files=True, type=['pdf', 'jpg', 'png'])
         
         if pyq_files:
-            st.success(f"{len(pyq_files)} Files Received
+            st.success(f"{len(pyq_files)} Files Received")
