@@ -8,7 +8,7 @@ import pandas as pd
 import time
 
 # --- 1. CORE CONFIG & AI SETUP ---
-genai.configure(api_key="AIzaSyCN6wgtYUcjtmSFcza8zwumohMw-mH399w")
+genai.configure(api_key="AIzaSyCN6WgtYUCjtMSFcza8zWumohMw-mH399w")
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Initialize Session States (Data Persistence)
