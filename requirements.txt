@@ -4,3 +4,5 @@ SpeechRecognition
 Pillow
 fpdf
 PyMuPDF
+pandas
+openpyxl
