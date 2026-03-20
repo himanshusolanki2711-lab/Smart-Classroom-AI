@@ -75,7 +75,18 @@ elif role == "Student" or (role == "Teacher" and input_pass == st.session_state[
         if st.button("🔴 Record Lecture"):
             # (Purana Voice Logic yahan rahega)
             st.write("Listening... (Transcribing to Master Notes)")
-
+    with t3:
+        st.subheader("📂 Digital Archive (PYQs)")
+        # GitHub pe upload ki gayi files yahan dikhengi
+        files = [f for f in os.listdir('.') if f.endswith('.pdf') or f.endswith('.jpg')]
+        if files:
+            for f_name in files:
+                col1, col2 = st.columns([3, 1])
+                col1.write(f"📄 {f_name}")
+                with open(f_name, "rb") as f:
+                    col2.download_button("Download", f, file_name=f_name, key=f_name)
+        else:
+            st.warning("Abhi koi PYQ upload nahi kiya gaya hai. GitHub par PDFs upload karein!")
     with t4:
         st.subheader("Teacher Quality Audit (Short)")
         if up_file:
