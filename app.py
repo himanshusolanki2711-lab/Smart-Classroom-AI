@@ -74,3 +74,34 @@ if pwd == "bhai123": # Generic password for demo
         
 else:
     st.error("Access Denied!")
+    with tabs[4]: # Live Lecture Tab
+        st.subheader("🎙️ Live Class (Auto-Note & Correction)")
+        
+        col1, col2 = st.columns(2)
+        start_btn = col1.button("🔴 Start Live Mic")
+        stop_btn = col2.button("⬛ Stop Mic")
+
+        if start_btn:
+            st.session_state['recording'] = True
+            st.write("🎤 Mic is ON... Listening to the lecture.")
+            
+        if stop_btn:
+            st.session_state['recording'] = False
+            st.write("🛑 Mic is OFF.")
+
+        # Actual Logic
+        if st.session_state.get('recording', False):
+            r = sr.Recognizer()
+            with sr.Microphone() as source:
+                # Background noise adjust karega
+                r.adjust_for_ambient_noise(source, duration=1)
+                try:
+                    # phrase_time_limit se ye 10 sec baad apne aap ruk jayenge
+                    audio = r.listen(source, timeout=5, phrase_time_limit=10)
+                    text = r.recognize_google(audio)
+                    
+                    # AI Processing
+                    res = model.generate_content(f"Teacher said: '{text}'. Correct any pronunciation errors and make bullet notes.")
+                    st.success(f"Processed: {res.text}")
+                except Exception as e:
+                    st.error("Kuch suna nahi bhai, phir se bolo!")
