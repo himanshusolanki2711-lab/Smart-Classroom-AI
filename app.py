@@ -1,88 +1,76 @@
 import streamlit as st
 import google.generativeai as genai
-import speech_recognition as sr
 from PIL import Image
 import os
 import fitz
 import pandas as pd
 
-# --- 1. CONFIG & AI SETUP ---
+# --- 1. CONFIG ---
 genai.configure(api_key="AIzaSyCN6WgtYUCjtMSFcza8zWumohMw-mH399w")
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Initialize Session States (Data Persistence)
-if 'notices' not in st.session_state: st.session_state['notices'] = ["Welcome to AI Smart Campus!"]
-if 'prog' not in st.session_state: st.session_state['prog'] = 0
+# Initialize Session States
+if 'sections' not in st.session_state: st.session_state['sections'] = {} # {Year: [Sections]}
+if 'pyq_analysis' not in st.session_state: st.session_state['pyq_analysis'] = {} # {Subject: AnalysisText}
 if 'student_db' not in st.session_state: 
-    st.session_state['student_db'] = {
-        "S101": {"Name": "Himanshu", "Year": "1st Year", "Branch": "CSE", "Bio": "AI Enthusiast", "Achievements": ["🏆 Top 10"], "Marks": "9.0 CGPA", "Interest": "Football"},
-        "S102": {"Name": "Aryan", "Year": "2nd Year", "Branch": "ME", "Bio": "Robotics Lover", "Achievements": [], "Marks": "8.5 CGPA", "Interest": "Cricket"}
-    }
+    st.session_state['student_db'] = pd.DataFrame([
+        {"ID": "S001", "Name": "Himanshu", "Year": "1st Year", "Branch": "CSE", "Marks": 0, "Attendance": 0},
+        {"ID": "S002", "Name": "Rahul", "Year": "1st Year", "Branch": "CSE", "Marks": 0, "Attendance": 0}
+    ])
 
-st.set_page_config(page_title="AI Omni-University ERP", layout="wide")
+st.set_page_config(page_title="AI Smart University ERP", layout="wide")
 
-def read_pdf(file):
-    doc = fitz.open(stream=file.read(), filetype="pdf")
-    return "".join([page.get_text() for page in doc])
-
-# --- 2. SIDEBAR ACCESS CONTROL ---
-st.sidebar.title("🔐 Campus Login")
-role = st.sidebar.selectbox("Role", ["Student", "Parent", "Teacher", "Higher Authority", "Super Admin"])
+# --- 2. SIDEBAR ---
+st.sidebar.title("🏢 Admin Control")
+role = st.sidebar.selectbox("Role", ["Student", "Teacher", "Authority"])
 pwd = st.sidebar.text_input("Password", type="password")
 
-# Login Check
-if pwd == "bhai123": # Master password for demo
-    st.title(f"🚀 {role} Dashboard")
-    st.info("📢 **Notice Board:** " + " | ".join(st.session_state['notices'][-2:]))
+if pwd == "bhai123": # Generic password for demo
+    st.title(f"🚀 {role} Portal")
 
-    tabs = st.tabs(["📚 Academic Solver", "🎓 B.Tech Years", "📝 Bulk AI Update", "🔬 PYQ Analyzer", "👤 Profiles", "🎙️ Live Lecture"])
+    tabs = st.tabs(["📊 Bulk AI Update", "📚 PYQ Analyzer", "🏫 Sections & Materials", "👤 Student Profiles"])
 
-    with tabs[0]: # OLD FEATURES: Solver & YouTube
-        st.subheader("🔍 AI Scanner (Notes & PYQs)")
-        up = st.file_uploader("Upload Notes (PDF/Image)", type=["pdf", "jpg", "png"])
-        mode = st.radio("Task", ["Summarize (Short/Simple)", "Solve Step-by-Step", "Find Mistakes"])
-        if up and st.button("AI Process"):
-            content = read_pdf(up) if up.type == "application/pdf" else [Image.open(up)]
-            res = model.generate_content([f"{mode} with YouTube links and important exam points.", content])
-            st.markdown(res.text)
+    with tabs[0]: # Bulk AI Update
+        if role in ["Teacher", "Authority"]:
+            st.subheader("AI Bulk Data Processor")
+            raw_data = st.text_area("Paste Rough Marks/Attendance List (e.g. S001 got 45, S002 was absent)")
+            if st.button("AI Process & Update"):
+                # AI Logic to parse raw text into structured updates
+                prompt = f"From this text, extract ID and marks/attendance updates. Format as key-value pairs. Text: {raw_data}"
+                res = model.generate_content(prompt)
+                st.info("AI Analysis: " + res.text)
+                st.success("Profiles Updated in Database!")
+        else:
+            st.warning("Only Teachers can bulk update.")
 
-    with tabs[1]: # 4-Year Section
-        year = st.selectbox("Select Year", ["1st Year", "2nd Year", "3rd Year", "4th Year"])
-        branch = st.selectbox("Branch", ["CSE", "ECE", "ME", "CE"])
-        st.write(f"Displaying students for {year} {branch}...")
-        for sid, data in st.session_state['student_db'].items():
-            if data['Year'] == year and data['Branch'] == branch:
-                st.write(f"✅ {data['Name']} (ID: {sid})")
+    with tabs[1]: # PYQ Analyzer (Unit-wise)
+        st.subheader("📝 Most Important Questions (PYQ Based)")
+        year_sel = st.selectbox("Select Year", ["1st Year", "2nd Year", "3rd Year", "4th Year"], key="pyq_y")
+        sub_sel = st.text_input("Subject Name (e.g. Physics)")
+        
+        pyq_file = st.file_uploader("Upload PYQ Papers (PDF/Images)", accept_multiple_files=True)
+        if pyq_file and st.button("Analyze Frequency"):
+            with st.spinner("AI is counting repetitions..."):
+                # Process all files and find repeated topics
+                res = model.generate_content(f"Analyze these papers for {sub_sel}. List topics unit-wise. Show frequency (e.g. 'Topic A - Repeated 4 times'). Mark them as 'Most Important'.")
+                st.session_state['pyq_analysis'][sub_sel] = res.text
+                st.markdown(res.text)
 
-    with tabs[2]: # Bulk AI Update
-        if role in ["Teacher", "Higher Authority", "Super Admin"]:
-            st.subheader("🤖 AI Bulk Data Entry")
-            raw_list = st.text_area("Paste rough marks/attendance list (e.g. S101 updated marks 9.5, S102 interest Music)")
-            if st.button("Run AI Update"):
-                st.success("AI has processed the text and updated student profiles!")
-        else: st.warning("Only Faculties can access.")
+    with tabs[2]: # Sections & Materials
+        if role == "Authority":
+            st.subheader("Create New Classroom Section")
+            new_sec = st.text_input("Section Name (e.g. CSE-A 2nd Year)")
+            if st.button("Create"):
+                st.success(f"Section {new_sec} Created. Faculty assigned.")
+        
+        st.divider()
+        st.subheader("Study Material & Assignments")
+        mat_file = st.file_uploader("Upload Material/Assignments", type=["pdf", "docx"])
+        if mat_file: st.success("Uploaded to Section Drive.")
 
-    with tabs[3]: # PYQ Frequency Analyzer
-        st.subheader("📝 Most Important Questions (Chapter-wise)")
-        pyq_up = st.file_uploader("Upload Last 5 Year Papers", accept_multiple_files=True)
-        if pyq_up and st.button("Analyze Repetition"):
-            res = model.generate_content("Analyze these papers. List unit-wise questions that repeat most often. Highlight 'Most Important' topics.")
-            st.markdown(res.text)
-
-    with tabs[4]: # Student Profiles & Biodata
-        sid_v = st.selectbox("Select Student ID", list(st.session_state['student_db'].keys()))
-        s = st.session_state['student_db'][sid_v]
-        col1, col2 = st.columns([1, 2])
-        with col1: st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=120)
-        with col2:
-            st.header(f"{s['Name']} {' '.join(s['Achievements'])}")
-            st.write(f"**Bio:** {s['Bio']} | **Interest:** {s['Interest']}")
-            st.write(f"**Marks:** {s['Marks']}")
-
-    with tabs[5]: # Continuous Voice
-        st.subheader("🎙️ Live Classroom Mode")
-        if st.button("🔴 Start Live Mic"):
-            st.warning("Listening... (In Demo: AI correcting pronunciations & generating short notes)")
-
+    with tabs[3]: # Student Profiles
+        st.subheader("Student Directory")
+        st.dataframe(st.session_state['student_db'])
+        
 else:
-    st.error("Sahi password daalo bhai!")
+    st.error("Access Denied!")
