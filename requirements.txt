@@ -3,3 +3,4 @@ google-generativeai
 SpeechRecognition
 Pillow
 fpdf
+PyMuPDF
