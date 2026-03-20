@@ -6,7 +6,7 @@ import os
 
 # --- 1. CORE CONFIG ---
 genai.configure(api_key="AIzaSyCN6WgtYUCjtMSFcza8zWumohMw-mH399w")
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash') 
 
 # Initialize States
 if 'prog' not in st.session_state: st.session_state['prog'] = 0
