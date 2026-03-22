@@ -47,7 +47,7 @@ API_KEY = "AIzaSyCN6WgtYUCjtMSFcza8zWumohMw-mH399w"
 
 try:
     import google.generativeai as genai
-    genai.configure(AIzaSyCN6WgtYUCjtMSFcza8zWumohMw-mH399w)
+    genai.configure(api_key=API_KEY)
     model_text = genai.GenerativeModel('gemini-1.5-flash')
     ai_status = "Connected ✅"
 except Exception:
